@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Loading OpenCV.js 2</title>
+</head>
+
+<body>
+    <p id="status">OpenCV.js is loading...</p>
+    <div>
+        <img id="imageSrc" src="sampleImg.jpg" />
+        <div class="inputoutput">
+            <canvas id="canvasOutput"></canvas>
+            <div class="caption">canvasOutput</div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        let opencvjs = document.createElement("script");
+        opencvjs.setAttribute("src", "https://docs.opencv.org/4.7.0/opencv.js");
+        opencvjs.onload = function () {
+            /* Because we are referring to constant 
+             const cv which is already predefined
+             and since it is object, we can find 'onRuntimeInitialized'
+             */
+            cv['onRuntimeInitialized'] = () => {
+                onOpenCvReady();
+            };
+        }
+        document.body.appendChild(opencvjs);
+        function onOpenCvReady() {
+            document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+            let imgElement = document.getElementById('imageSrc');
+            let mat = cv.imread(imgElement);
+            cv.imshow('canvasOutput', mat);
+            mat.delete();
+        }
+
+    </script>
+</body>
+
+</html>
