@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Using Trackbars in OpenCV.js</title>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
+</head>
+
+<body>
+    <p id="status">OpenCV.js is loading...</p>
+    <div>
+        <!-- Make sure that images of the same size as canvas -->
+        <img src="img1.png" id="imgInput1">
+        <img src="img2.png" id="imgInput2">
+        <canvas id="canvasOutput"></canvas>
+
+        Weight: <input type="range" id="trackbar" value="50" min="0" max="100" step="1">
+        <input type="text" id="weightValue" size="3" value="50" />
+    </div>
+    <script type="text/javascript">
+        /* Call Emscripten to get even onRunTimeInitialized. 
+        Otherwise it will throw an error if we want to smth that uses opencv */
+        let Module = {
+            onRuntimeInitialized() {
+                document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+                onOpenCvReady()
+            }
+        };
+        function onOpenCvReady() {
+            let x = document.createElement('INPUT');
+            x.setAttribute('type', 'range');
+            document.querySelector("#trackbar").addEventListener("input", function () {
+                let trackbar = document.getElementById('trackbar');
+                let alpha = trackbar.value / trackbar.max;
+                let beta = (1.0 - alpha);
+                let src1 = cv.imread('imgInput1');
+                let src2 = cv.imread('imgInput2');
+                let dst = new cv.Mat();
+                cv.addWeighted(src1, alpha, src2, beta, 0.0, dst, -1);
+                cv.imshow('canvasOutput', dst);
+                dst.delete();
+                src1.delete();
+                src2.delete();
+            })
+        }
+
+
+    </script>
+</body>
+
+</html>
