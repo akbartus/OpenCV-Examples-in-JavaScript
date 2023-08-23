@@ -1,1 +1,1 @@
-# OpenCV.js-useful-codes
+# OpenCV Examples for JavaScript
