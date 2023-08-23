@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Subtracting Images (Matrixes) in OpenCV.js</title>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
+</head>
+
+<body>
+    <p id="status">OpenCV.js is loading...</p>
+    <div>
+        <img src="img1.jpg" id="imgInput1" width="400" height="250">
+        <img src="img2.jpg" id="imgInput2" width="400" height="250">
+        <canvas id="canvasOutput"></canvas>
+
+    </div>
+    <script type="text/javascript">
+        let Module = {
+            onRuntimeInitialized() {
+                document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+                onOpenCvReady()
+            }
+        };
+        function onOpenCvReady() {
+            let src1 = cv.imread("imgInput1");
+            let src2 = cv.imread("imgInput2");
+            
+            // Convert images to RGB channel
+            let src1RGB = new cv.Mat();
+            let src2RGB = new cv.Mat();
+            // Subtraction works with RGB
+            cv.cvtColor(src1, src1RGB, cv.COLOR_BGR2RGB);
+            cv.cvtColor(src2, src2RGB, cv.COLOR_BGR2RGB);
+            let dst = new cv.Mat();
+            let mask = new cv.Mat();
+            let dtype = 0;
+            cv.subtract(src1RGB, src2RGB, dst);
+            cv.imshow('canvasOutput', dst);
+            
+            // Clean up
+            src1.delete(); src2.delete(); src1RGB.delete(); src2RGB.delete(); dst.delete(); mask.delete();
+        }
+    </script>
+</body>
+
+</html>

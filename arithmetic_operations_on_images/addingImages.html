@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Adding Images (Matrixes) in OpenCV.js</title>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
+</head>
+
+<body>
+    <p id="status">OpenCV.js is loading...</p>
+    <div>
+        <img src="img1.jpg" id="imgInput1" width="400" height="250">
+        <img src="img2.jpg" id="imgInput2" width="400" height="250">
+        <canvas id="canvasOutput"></canvas>
+
+    </div>
+    <script type="text/javascript">
+        let Module = {
+            onRuntimeInitialized() {
+                document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+                onOpenCvReady()
+            }
+        };
+        function onOpenCvReady() {
+            let src1 = cv.imread("imgInput1");
+            let src2 = cv.imread("imgInput2");
+            let dst = new cv.Mat();
+            let mask = new cv.Mat();
+            let dtype = -1;
+            /*
+            src1: The first source matrix.
+            src2: The second source matrix.
+            dst: The destination matrix where the result of the addition will be stored.
+            mask (optional): An optional mask specifying the operation's region of interest. Only the pixels specified by the mask will be modified.
+            dtype (optional): An optional data type parameter specifying the depth of the destination matrix. If not provided, the depth of dst will be inferred from src1 and src2.
+            */
+            cv.add(src1, src2, dst, mask, dtype);
+            cv.imshow('canvasOutput', dst);
+            src1.delete(); src2.delete(); dst.delete(); mask.delete();
+
+        }
+    </script>
+</body>
+
+</html>
