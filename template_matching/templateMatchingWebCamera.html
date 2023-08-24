@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Multi Template Matching in OpenCV.js</title>
+</head>
+<body>
+  <div>
+    <p>Template Image:</p>
+    <img id="referenceImage" src="multi1.jpg">
+    <img id="imgToFind" src="multi2.jpg">
+    <canvas id="canvasOutput"></canvas>
+  </div>
+  <script>
+    let opencvjs = document.createElement("script");
+    opencvjs.setAttribute("src", "https://docs.opencv.org/4.8.0/opencv.js");
+    opencvjs.onload = function () {
+      // run the contour detection code
+      cv['onRuntimeInitialized'] = () => {
+        onOpenCvReady();
+      };
+    };
+    document.body.appendChild(opencvjs);
+    
+    function onOpenCvReady() {
+      let src = cv.imread("referenceImage");
+      let templ = cv.imread("imgToFind");
+      let dst = new cv.Mat();
+      let mask = new cv.Mat();
+
+      cv.matchTemplate(src, templ, dst, cv.TM_CCORR_NORMED, mask);
+
+      let color = new cv.Scalar(0, 255, 0, 255);
+
+      var newDst = [];
+      var start = 0;
+      var end = dst.cols;
+
+      for (var i = 0; i < dst.rows; i++) {
+
+        newDst[i] = [];
+        for (var k = 0; k < dst.cols; k++) {
+
+          newDst[i][k] = dst.data32F[start];
+
+          if (newDst[i][k] > 0.97) {
+
+            let maxPoint = {
+              "x": k,
+              "y": i
+            }
+            let point = new cv.Point(k + templ.cols, i + templ.rows);
+            cv.rectangle(src, maxPoint, point, color, 2, cv.LINE_8, 0);
+          }
+          start++;
+        }
+        start = end;
+        end = end + dst.cols;
+      }
+      cv.imshow('canvasOutput', src);
+    }
+  </script>
+</body>
+
+</html>

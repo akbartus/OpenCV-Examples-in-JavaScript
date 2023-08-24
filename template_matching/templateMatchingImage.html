@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Template Matching in OpenCV.js</title>
+</head>
+<body>
+    <img id="referenceImage" src="img1.jpg" alt="Reference Image" >
+    <img id="imgToFind" src="img2.jpg" alt="Test Image">
+    <button id="matchButton">Match Template</button>
+  <canvas id="canvasOutput"></canvas> <!-- Add the canvas element for test image -->
+  <script src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+  <script>
+    const matchButton = document.getElementById('matchButton');
+    matchButton.addEventListener('click', () => {
+      let src = cv.imread('referenceImage');
+      let templ = cv.imread('imgToFind');
+      let dst = new cv.Mat();
+      let mask = new cv.Mat();
+      cv.matchTemplate(src, templ, dst, cv.TM_CCOEFF, mask);
+      let result = cv.minMaxLoc(dst, mask);
+      let maxPoint = result.maxLoc;
+      let color = new cv.Scalar(255, 0, 0, 255);
+      let point = new cv.Point(maxPoint.x + templ.cols, maxPoint.y + templ.rows);
+      cv.rectangle(src, maxPoint, point, color, 2, cv.LINE_8, 0);
+      cv.imshow('canvasOutput', src);
+      src.delete(); dst.delete(); mask.delete();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Shapes Recognition from Image in OpenCV.js</title>
+</head>
+
+<body>
+  <img src="shapes.jpg">
+  <canvas id="myCanvas"></canvas>
+
+  <script type="text/javascript">
+    // Function to be called when OpenCV is ready
+    let opencvjs = document.createElement("script");
+    opencvjs.setAttribute("src", "https://docs.opencv.org/4.8.0/opencv.js");
+    opencvjs.onload = function () {
+      // run the contour detection code
+      cv['onRuntimeInitialized'] = () => {
+        onOpenCvReady()
+      };
+    }
+    document.body.appendChild(opencvjs);
+
+
+    function onOpenCvReady() {
+      // Load the image
+      let imgElement = document.querySelector('img');
+      let src = cv.imread(imgElement);
+
+      // Convert to grayscale
+      let gray = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+      // Apply thresholding to create a binary image
+      let thresh = new cv.Mat();
+      cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+
+      // Define kernel for morphological operations
+      let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+
+      // Apply morphological opening to remove noise
+      cv.morphologyEx(thresh, thresh, cv.MORPH_OPEN, kernel);
+
+      // Find contours
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
+      cv.findContours(thresh, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+
+      // Draw all contours and indicate their area
+      let color = new cv.Scalar(0, 255, 0, 255);
+      for (let i = 0; i < contours.size(); i++) {
+        let area = cv.contourArea(contours.get(i));
+
+        // Show only contours with area specified
+        if (area > 2000 && area < 20000) {
+          cv.drawContours(src, contours, i, color, 2, cv.LINE_8, hierarchy, 0);
+
+          // Approximate polygonal curve for the current contour
+          let approx = new cv.Mat();
+          cv.approxPolyDP(contours.get(i), approx, 0.01 * cv.arcLength(contours.get(i), true), true);
+          let numCorners = approx.rows;
+
+          // Determine the shape of the current contour
+          let shape = "unknown";
+          if (numCorners == 3) {
+            shape = "triangle";
+          } else if (numCorners == 4) {
+            let rect = cv.boundingRect(approx);
+            let aspectRatio = rect.width / rect.height;
+            if (aspectRatio >= 0.95 && aspectRatio <= 1.05) {
+              shape = "square";
+            } else {
+              shape = "rectangle";
+            }
+          } else if (numCorners == 5) {
+            shape = "pentagon";
+          } else if (numCorners == 6) {
+            shape = "hexagon";
+          } else if (numCorners == 7) {
+            shape = "heptagon";
+          } else if (numCorners == 8) {
+            shape = "octagon";
+          } else if (numCorners == 9) {
+            shape = "nonagon";
+          } else if (numCorners == 10) {
+            shape = "decagon";
+          } else if (numCorners == 11) {
+            shape = "hendecagon";
+          } else if (numCorners == 12) {
+            shape = "dodecagon";
+          } else {
+            shape = "circle";
+          }
+
+          // Calculate the center of the contour
+          let moments = cv.moments(contours.get(i));
+          let centerX = moments.m10 / moments.m00;
+          let centerY = moments.m01 / moments.m00;
+
+          // Draw the shape name, number of corners, and area at the center of the contour
+          let text = shape + " (" + numCorners + ")";
+          let fontFace = cv.FONT_HERSHEY_SIMPLEX;
+          let fontScale = 0.5;
+          let thickness = 1;
+          let textOrg = new cv.Point(centerX - 50, centerY);
+          cv.putText(src, text, textOrg, fontFace, fontScale, new cv.Scalar(255, 0, 0, 255), thickness);
+        }
+      }
+
+      // Display the result on an existing canvas element
+      let canvas = document.getElementById("myCanvas");
+      cv.imshow(canvas, src);
+
+      // Free memory
+      gray.delete();
+      thresh.delete();
+      contours.delete();
+      hierarchy.delete();
+
+      // Free the image data from memory after it's displayed
+      src.delete();
+
+    }
+  </script>
+</body>
+
+</html>
