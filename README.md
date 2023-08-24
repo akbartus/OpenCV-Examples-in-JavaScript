@@ -1,1 +1,1 @@
-# OpenCV Examples for JavaScript
+# OpenCV Examples in JavaScript
