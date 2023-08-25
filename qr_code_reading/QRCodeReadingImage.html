@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Example of Reading a QR Code in OpenCV.js</title>
+</head>
+
+<body>
+    <canvas id="result" width="440" height="275"></canvas>
+    <script type="text/javascript">
+        let displayVid;
+        let opencvjs = document.createElement("script");
+        opencvjs.setAttribute("src", "https://docs.opencv.org/4.6.0/opencv.js");
+        opencvjs.onload = function () {
+            cv['onRuntimeInitialized'] = () => {
+                onOpenCvReady();
+            };
+        }
+        document.body.appendChild(opencvjs);
+
+
+        function onOpenCvReady() {
+            let img = document.createElement("img");
+            img.src = "code.png";
+            img.onload = function () {
+                let cvImg = cv.imread(img);
+                let qcd = new cv.QRCodeDetector();
+
+                let qrCode = new cv.Mat();
+                let points = new cv.Mat();
+                let straightQrCode = new cv.Mat();
+
+                let retval = qcd.detectAndDecode(cvImg);
+                console.log(retval);
+
+                cv.putText(cvImg, retval, new cv.Point(10, 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, new cv.Scalar(0, 255, 0, 255), 1, cv.LINE_AA);
+
+                cv.imshow('result', cvImg);
+            };
+        }
+    </script>
+</body>
+
+</html>
