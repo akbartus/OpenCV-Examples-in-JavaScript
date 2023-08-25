@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aruco Marker Detection in Image in OpenCV.js</title>
+</head>
+
+<body>
+    <img id="input_image" src="markers.jpg" width="320" height="240">
+    <canvas id="output_canvas" width="320" height="240"></canvas>
+    <div id="threejs_canvas"></div>
+</body>
+<script async src="opencv.js" id="opencvjs" onload="main()"></script>
+<script>
+    async function main() {
+        console.log('main function');
+
+        let canvas = document.getElementById("output_canvas");
+        let ctx = canvas.getContext("2d");
+
+        let arucoDictionary = new cv.Dictionary(cv.DICT_4X4_100);
+        let parameters = new cv.DetectorParameters();
+        let inputImage = cv.imread(document.getElementById("input_image"));
+
+        let markerIds = new cv.Mat();
+        let markerCorners = new cv.MatVector();
+        let rgbImage = new cv.Mat();
+
+        cv.cvtColor(inputImage, rgbImage, cv.COLOR_RGBA2RGB, 0);
+        cv.detectMarkers(rgbImage, arucoDictionary, markerCorners, markerIds, parameters);
+        console.log(markerIds.data32S[0]); // to get the marker ID
+        if (markerIds.rows > 0) {
+            cv.drawDetectedMarkers(rgbImage, markerCorners, markerIds);
+            cv.imshow(canvas, rgbImage);
+        } else {
+            cv.imshow(canvas, inputImage);
+        }
+    }
+</script>
+
+</html>

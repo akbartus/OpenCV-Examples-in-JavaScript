@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aruco Marker Detection on WebCamera in OpenCV.js</title>
+</head>
+
+<body>
+    <video id="input_video" width="500" height="500"></video>
+    <canvas id="output_video" width="500" height="500"></canvas>
+</body>
+<!-- Load local opencv.js compiled with ARUCO markers support -->
+<script async src="opencv.js" id="opencvjs" onload="main()"></script>
+<script>
+    async function main() {
+        console.log('main function');
+
+        // accessing the video from the webcamera
+        let input_video = document.getElementById("input_video");
+        input_video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        input_video.play();
+
+        // output
+        let canvas = document.getElementById("output_video");
+        
+        // Importing ARUCO markers
+        let arucoDictionary = new cv.Dictionary(cv.DICT_4X4_100);
+        let parameters = new cv.DetectorParameters();
+        let inputImage = new cv.Mat(input_video.height, input_video.width, cv.CV_8UC4);
+
+        let markerIds = new cv.Mat();
+        let markerCorners = new cv.MatVector();
+        let rgbImage = new cv.Mat();
+
+        let cap = new cv.VideoCapture(input_video);
+        let loopIndex = null;
+        loopIndex = setInterval(function () {
+            try {
+                cap.read(inputImage);
+                cv.cvtColor(inputImage, rgbImage, cv.COLOR_RGBA2RGB, 0);
+                // detecting ARUCO markers
+                cv.detectMarkers(rgbImage, arucoDictionary, markerCorners, markerIds, parameters);
+                console.log(markerIds.data32S[0]); // to get the marker ID
+                if (markerIds.rows > 0) {
+                    cv.drawDetectedMarkers(rgbImage, markerCorners, markerIds);
+                    // Draw XYZ axis on each marker
+                    for (let i = 0; i < markerIds.rows; i++) {
+                        let rvec = new cv.Mat();
+                        let tvec = new cv.Mat();
+                        cv.estimatePoseSingleMarkers(markerCorners, 0.05, cameraMatrix, distCoeffs, rvec, tvec);
+                        cv.drawAxis(rgbImage, cameraMatrix, distCoeffs, rvec, tvec, 0.1);
+                        rvec.delete();
+                        tvec.delete();
+                    }
+                    cv.imshow('output_video', rgbImage);
+                    logMarkerCoordinates(markerCorners);
+                } else {
+                    cv.imshow('output_video', inputImage);
+                }
+            } catch (err) {
+                console.log(err);
+                clearInterval(loopIndex);
+            }
+        }, 33)
+
+        console.log(input_video.height, input_video.width)
+        console.log("main function is completed without any errors");
+
+        let cameraMatrix = cv.matFromArray(3, 3, cv.CV_64FC1, [500, 0, input_video.width / 2, 0, 500, input_video.height / 2, 0, 0, 1]);
+        let distCoeffs = cv.matFromArray(1, 5, cv.CV_64FC1, [0, 0, 0, 0, 0]);
+    }
+
+    function logMarkerCoordinates(markerCorners) {
+        for (let i = 0; i < markerCorners.size(); i++) {
+            let corners = markerCorners.get(i);
+            console.log(`Marker ${i}:`);
+            for (let j = 0; j < corners.size(); j++) {
+                let point = corners.get(j);
+                console.log(`  Corner ${j}: (${point.x}, ${point.y})`);
+            }
+        }
+    }
+</script>
+
+</html>
