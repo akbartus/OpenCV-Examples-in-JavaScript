@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="utf-8" />
+  <title>BubbleSheet (auto-grading) in OpenCV.js</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body>
+  <div class="container">
+    <button type="button" id="gradeButton" class="btn btn-primary">
+      GRADE
+    </button>
+    <div>
+      <table id="answerTable" style="font-size:20px; padding: 20px 0px; display: none;">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Letter</th>
+            <th>Position</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <canvas id="canvasOutput"></canvas>
+    </div>
+    <canvas id="canvasInput"></canvas>
+  </div>
+
+  <script src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+  <script>
+    let inputCanvas = document.getElementById("canvasInput");
+    function loadImageToCanvas() {
+      let ctx = inputCanvas.getContext("2d");
+      let img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () {
+        inputCanvas.width = img.width;
+        inputCanvas.height = img.height;
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+      };
+      img.src = "main.png";
+    }
+    loadImageToCanvas();
+
+    const white = new cv.Scalar(255, 255, 255);
+    const red = new cv.Scalar(255, 0, 0);
+    const green = new cv.Scalar(0, 255, 0);
+    const blue = new cv.Scalar(0, 0, 255);
+    const yellow = new cv.Scalar(235, 229, 52);
+    const black = new cv.Scalar(0, 0, 0);
+
+    document.getElementById("gradeButton").onclick = function () {
+      let rawSrc = cv.imread("canvasInput");
+      cv.imshow("canvasOutput", rawSrc);
+
+      let srcMat = prepImage(rawSrc.clone());
+      let warped = fourPointTransform(srcMat);
+      let blackOrWhite = applyOtsuThresh(warped);
+      let [circleMat, answers] = detectCircles(blackOrWhite);
+      printAnswersToTable(answers);
+
+      cv.imshow("canvasOutput", circleMat);
+    };
+
+    const printAnswersToTable = (answers, options = ["A", "B", "C", "D", "E"]) => {
+      const table = document.getElementById("answerTable");
+      table.style.display = "block";
+      const tbody = table.querySelector("tbody");
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+      for (let answer of answers) {
+        let row = tbody.insertRow(answer.q - 1);
+        let cell1 = row.insertCell(0);
+        let cell2 = row.insertCell(1);
+        let cell3 = row.insertCell(2);
+        cell1.textContent = answer.q;
+        cell2.textContent = options[answer.answerPosition];
+        cell3.textContent = answer.answerPosition;
+      }
+      table.classList.remove("table--hidden");
+    };
+
+    const prepImage = (srcMat) => {
+      cv.cvtColor(srcMat, srcMat, cv.COLOR_RGBA2GRAY);
+      let ksize = new cv.Size(3, 3);
+      cv.GaussianBlur(srcMat, srcMat, ksize, 0, 0, cv.BORDER_DEFAULT);
+      cv.Canny(srcMat, srcMat, 75, 200, 3, false);
+      return srcMat;
+    };
+
+    const fourPointTransform = (srcMat) => {
+      let contMat = srcMat.clone();
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
+      cv.findContours(
+        contMat,
+        contours,
+        hierarchy,
+        cv.RETR_LIST,
+        cv.CHAIN_APPROX_SIMPLE
+      );
+      let sortableContours = [];
+      for (let i = 0; i < contours.size(); i++) {
+        let cnt = contours.get(i);
+        let area = cv.contourArea(cnt, false);
+        let perim = cv.arcLength(cnt, false);
+        sortableContours.push({ areaSize: area, perimiterSize: perim, contour: cnt });
+      }
+      sortableContours = sortableContours
+        .sort((item1, item2) => item1.areaSize > item2.areaSize ? -1 : item1.areaSize < item2.areaSize ? 1 : 0)
+        .slice(0, 5);
+      let approx = new cv.Mat();
+      cv.approxPolyDP(
+        sortableContours[0].contour,
+        approx,
+        0.05 * sortableContours[0].perimiterSize,
+        true
+      );
+      if (approx.rows == 4) {
+        foundContour = approx;
+      } else {
+        throw "No 4 - corner large contour! Aborting";
+      }
+      let corner1 = new cv.Point(foundContour.data32S[0], foundContour.data32S[1]);
+      let corner2 = new cv.Point(foundContour.data32S[2], foundContour.data32S[3]);
+      let corner3 = new cv.Point(foundContour.data32S[4], foundContour.data32S[5]);
+      let corner4 = new cv.Point(foundContour.data32S[6], foundContour.data32S[7]);
+      let cornerArray = [
+        { corner: corner1 },
+        { corner: corner2 },
+        { corner: corner3 },
+        { corner: corner4 },
+      ];
+      cornerArray
+        .sort((item1, item2) => (item1.corner.y < item2.corner.y ? -1 : item1.corner.y > item2.corner.y ? 1 : 0))
+        .slice(0, 5);
+      let tl = cornerArray[0].corner.x < cornerArray[1].corner.x ? cornerArray[0] : cornerArray[1];
+      let tr = cornerArray[0].corner.x > cornerArray[1].corner.x ? cornerArray[0] : cornerArray[1];
+      let bl = cornerArray[2].corner.x < cornerArray[3].corner.x ? cornerArray[2] : cornerArray[3];
+      let br = cornerArray[2].corner.x > cornerArray[3].corner.x ? cornerArray[2] : cornerArray[3];
+      let widthBottom = Math.hypot(br.corner.x - bl.corner.x, br.corner.y - bl.corner.y);
+      let widthTop = Math.hypot(tr.corner.x - tl.corner.x, tr.corner.y - tl.corner.y);
+      let outputWidth = Math.max(widthBottom, widthTop);
+      let heightRight = Math.hypot(tr.corner.x - br.corner.x, tr.corner.y - br.corner.y);
+      let heightLeft = Math.hypot(tl.corner.x - bl.corner.x, tr.corner.y - bl.corner.y);
+      let outputHeight = Math.max(heightRight, heightLeft);
+      let finalDestCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        0,
+        0,
+        outputWidth - 1,
+        0,
+        outputWidth - 1,
+        outputHeight - 1,
+        0,
+        outputHeight - 1,
+      ]);
+      let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        tl.corner.x,
+        tl.corner.y,
+        tr.corner.x,
+        tr.corner.y,
+        br.corner.x,
+        br.corner.y,
+        bl.corner.x,
+        bl.corner.y,
+      ]);
+      let dsize = new cv.Size(outputWidth, outputHeight);
+      let M = cv.getPerspectiveTransform(srcCoords, finalDestCoords);
+      cv.warpPerspective(
+        contMat,
+        contMat,
+        M,
+        dsize,
+        cv.INTER_LINEAR,
+        cv.BORDER_CONSTANT,
+        new cv.Scalar()
+      );
+      return contMat;
+    };
+
+    const applyOtsuThresh = (src) => {
+      let thresh = new cv.Mat();
+      cv.threshold(src, thresh, 0, 255, cv.THRESH_OTSU);
+      return thresh;
+    };
+
+    const detectCircles = (mat) => {
+      let src = mat.clone();
+      let output = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
+      cv.findContours(
+        src,
+        contours,
+        hierarchy,
+        cv.RETR_CCOMP,
+        cv.CHAIN_APPROX_SIMPLE
+      );
+      let potentialBubbles = [];
+      for (let i = 0; i < contours.size(); i++) {
+        let c = contours.get(i);
+        let { height, width } = cv.boundingRect(c);
+        let aspectRatio = width / height;
+        if (width >= 20 && height >= 20 && aspectRatio >= 0.9 && aspectRatio <= 1.1) {
+          potentialBubbles.push(c);
+        }
+      }
+      let bubbleOutlines = potentialBubbles.reduce((collection, current) => {
+        let currentRect = cv.boundingRect(current);
+        let overlapping = collection.find((other) => {
+          let otherRect = cv.boundingRect(other);
+          return (
+            currentRect.x < otherRect.x + otherRect.width &&
+            currentRect.x + currentRect.width > otherRect.x &&
+            currentRect.y < otherRect.y + otherRect.height &&
+            currentRect.height + currentRect.y > otherRect.y
+          );
+        });
+        if (!overlapping) {
+          collection.push(current);
+        } else {
+          let currentArea = currentRect.width * currentRect.height;
+          let otherArea = overlapping.width * overlapping.height;
+          if (currentArea > otherArea) {
+            otherIndex = collection.indexOf(overlapping);
+            collection[otherIndex] = current;
+          }
+        }
+        return collection;
+      }, []);
+      bubbleOutlines = sortContours(bubbleOutlines);
+      for (let i = 0, length = bubbleOutlines.length; i < length; i++) {
+        let bubble = bubbleOutlines[i];
+        let circle = cv.minEnclosingCircle(bubble);
+        cv.circle(output, circle.center, circle.radius, blue, 2, cv.LINE_AA, 0);
+        const textCenter = i < 9 ? { x: circle.center.x - 5, y: circle.center.y + 5 } : { x: circle.center.x - 10, y: circle.center.y + 5 };
+        const bubbleLabel = `${i + 1}`;
+        cv.putText(output, bubbleLabel, textCenter, 1, 1, blue);
+      }
+      const optionCount = 5;
+      const questions = groupToQuestions(bubbleOutlines, optionCount);
+      for (let i = 0, length = questions.length; i < length; i++) {
+        const questionGroup = questions[i];
+        const firstCnt = questionGroup[0];
+        const lastCnt = questionGroup[optionCount - 1];
+        if (!lastCnt) {
+          throw `questionGroup i=${i} is the victim of a previous (not enough bubbles for question)`;
+        }
+        const firstBubble = cv.boundingRect(firstCnt);
+        const lastBubble = cv.boundingRect(lastCnt);
+        let point1 = new cv.Point(firstBubble.x, firstBubble.y);
+        let point2 = new cv.Point(
+          lastBubble.x + lastBubble.width,
+          lastBubble.y + lastBubble.height
+        );
+        cv.rectangle(output, point1, point2, red, 2, cv.LINE_AA, 0);
+        const textCenter = {
+          x: firstBubble.x - 30,
+          y: firstBubble.y + firstBubble.height / 2 + 5,
+        };
+        const qNum = `Q${i + 1}`;
+        cv.putText(output, qNum, textCenter, 1, 1, red);
+      }
+      let thresh = mat.clone();
+      let answers = [];
+      for (let i = 0, length = questions.length; i < length; i++) {
+        const questionGroup = questions[i];
+        let max;
+        let table = [];
+        for (let j = 0, optionCount = questionGroup.length; j < optionCount; j++) {
+          let choice = questionGroup[j];
+          let boundingRect = cv.boundingRect(choice);
+          let innerRect = new cv.Rect(
+            boundingRect.x + 5,
+            boundingRect.y + 5,
+            boundingRect.width - 10,
+            boundingRect.height - 10
+          );
+          let region = thresh.roi(innerRect);
+          let point1 = new cv.Point(innerRect.x, innerRect.y);
+          let point2 = new cv.Point(
+            innerRect.x + innerRect.width,
+            innerRect.y + innerRect.height
+          );
+          cv.rectangle(output, point1, point2, red, 2, cv.LINE_AA, 0);
+          let blackOnly = cv.Mat.zeros(region.rows, region.cols, cv.CV_8UC1);
+          let circleMask = blackOnly.clone();
+          let calculatedRadius = (region.rows + region.cols) / 4;
+          let boundingCircle = cv.minEnclosingCircle(choice);
+          cv.circle(output, boundingCircle.center, calculatedRadius, yellow, -1);
+          cv.circle(
+            circleMask,
+            { x: region.rows / 2, y: region.cols / 2 },
+            calculatedRadius,
+            white,
+            -1
+          );
+          let whiteCircle = new cv.Mat();
+          cv.bitwise_and(region, region, whiteCircle, circleMask);
+          let regionCount = cv.countNonZero(region);
+          let circleCount = cv.countNonZero(whiteCircle);
+          table.push([["A", "B", "C", "D", "E"][j], regionCount, circleCount]);
+          if (!max || max[2] < circleCount) {
+            max = [choice, j, circleCount];
+          }
+        }
+        let correct = cv.minEnclosingCircle(max[0]);
+        cv.circle(output, correct.center, correct.radius, green, 2, cv.LINE_AA, 0);
+        answers.push({ q: i + 1, answerPosition: max[1] });
+        console.log("\nQ", i + 1);
+        console.table(table);
+      }
+      return [output, answers];
+    };
+
+    const sortContours = (contours) => {
+      const BUFFER = 1.2;
+      return contours
+        .map((c) => [c, cv.boundingRect(c)])
+        .sort((a, b) => {
+          const [, aRect] = a;
+          const [, bRect] = b;
+          if (BUFFER * aRect.y < bRect.y) return -1;
+          if (aRect.y > BUFFER * bRect.y) return 1;
+          if (aRect.x < bRect.x) return -1;
+          if (aRect.x > bRect.x) return 1;
+        })
+        .map(([c, _rect]) => c);
+    };
+
+    const chunkArray = (array, size) => {
+      if (array.length <= size) {
+        return [array];
+      }
+      return [array.slice(0, size), ...chunkArray(array.slice(size), size)];
+    };
+
+    const groupToQuestions = (outlines, optionCount) => {
+      return chunkArray(outlines, optionCount);
+    };
+  </script>
+</body>
+
+</html>
